@@ -1,6 +1,7 @@
 # Kestrel - Auto Insurance Rating Engine
 
-> **Status**: Test Development
+> **Status**: Test Development  
+> **Phase**: Epic B of the Assessment
 
 A test development insurance auto rating and underwriting engine built with Laravel and Domain-Driven Design (DDD) principles.
 
