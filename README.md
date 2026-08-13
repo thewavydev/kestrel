@@ -515,13 +515,56 @@ Total Premium: £327.75
 
 ## Testing
 
-### Test Coverage
+### Test Files
 
-**Unit Tests** (`tests/Unit/Domain/Rating/`):
-- `RatingEngineTest`: Premium calculations, minimum floor, NCD logic
-- `UnderwritingRulesTest`: Decline/referral rule evaluation
-- `InstalmentPlanTest`: Payment plan calculations
-- `AcceptanceVectorsTest`: End-to-end acceptance scenarios
+#### 1. **RatingEngineTest.php**
+Core rating engine functionality and known-good outputs.
+
+**Key Tests**:
+- `test_at_01_standard_risk_produces_expected_premium` — Standard risk with all factors yields £222.38 net premium
+- `test_three_fault_claims_return_no_price` — 3+ claims trigger decline (UW-D03)
+- `test_quote_records_rating_basis_version` — Rating basis version tracked in results
+- `test_v1_quote_can_be_reproduced_after_v2_is_created` — Versioning allows reproducing historical quotes
+
+**Coverage**: Premium calculation, underwriting integration, rating basis versioning
+
+#### 2. **UnderwritingRulesTest.php**
+Automated underwriting decision logic (decline/referral/quote).
+
+**Key Tests**:
+- `test_three_fault_claims_are_declined` — 3+ claims → DECLINED (UW-D03)
+- `test_ten_penalty_points_are_declined` — 10+ points → DECLINED (UW-D04)
+- `test_licence_less_than_six_months_is_declined` — <6 months licence → DECLINED (UW-D02)
+- `test_dr10_is_referred` — DR10 conviction → REFERRED (UW-R02)
+- `test_mileage_above_40000_is_referred` — >40k annual mileage → REFERRED (UW-R07)
+- `test_seventeen_year_old_driver_is_allowed_by_age_rule` — Age 17 allowed (boundary)
+- `test_decline_takes_precedence_over_referral` — Decline decision wins
+
+**Coverage**: All 5 decline rules, both referral rules, decision hierarchy
+
+#### 3. **InstalmentPlanTest.php**
+Payment plan calculation with residual allocation logic.
+
+**Key Tests**:
+- `test_at_01_instalment_calculation` — 20% deposit + 11 instalments with residual allocation
+- `test_residual_is_always_allocated_to_instalments` — Residual pence correctly handled
+
+**Coverage**: Instalment math, residual rounding, deposit calculation
+
+#### 4. **AcceptanceVectorsTest.php**
+End-to-end acceptance test scenarios with known-good outputs.
+
+**Test Vectors**:
+- `test_at_01_standard_risk` — Standard risk, comprehensive cover, 6-year NCD → £327.75 total
+- `test_at_02_young_driver_tpft` — Young driver (age 21), TPFT cover, 1 penalty point → £1,565.73 total
+- `test_at_03_minimum_premium_and_ncd_protection` — Premium below minimum floor with NCD protection → £244.66 total
+- `test_at_04_three_fault_claims_are_declined_without_price` — Decline scenario returns no price
+- `test_at_05_dr10_is_referred_without_price` — Referral scenario returns no price
+- `test_at_06_mid_term_vehicle_change` — Mid-term adjustment calculation → £90.87 total charged
+- `test_at_07_cancellation_no_fault_claim` — Pro-rata refund calculation → £87.34 net refund
+- `test_at_08_renewal_price_is_capped_at_new_business_price` — Renewal cap logic applied
+
+**Coverage**: Full factor chain calculations, edge cases, premium floor, mid-term adjustments, cancellations, renewals
 
 ### Running Tests
 
@@ -532,10 +575,13 @@ php artisan test
 # Specific test file
 php artisan test tests/Unit/Domain/Rating/RatingEngineTest.php
 
+# Specific test
+php artisan test tests/Unit/Domain/Rating/RatingEngineTest.php --filter test_at_01
+
 # With code coverage
 php artisan test --coverage
 
-# Watch mode
+# Watch mode (re-runs on file changes)
 php artisan test --watch
 ```
 
@@ -547,16 +593,17 @@ Tests follow Acceptance Test (AT) and Unit Test (UT) conventions:
 // Acceptance test with known-good output
 public function test_at_01_standard_risk_produces_expected_premium(): void
 {
-    // ... setup risk
-    // ... assert against known-good output
+    // Setup risk scenario
+    // Execute calculation
+    // Assert against known-good values
 }
 
 // Unit test for specific rule
-public function test_three_fault_claims_return_no_price(): void
+public function test_three_fault_claims_are_declined(): void
 {
-    // ... arrange
-    // ... act
-    // ... assert single behavior
+    // Arrange: setup specific scenario
+    // Act: evaluate underwriting
+    // Assert: verify decision and codes
 }
 ```
 

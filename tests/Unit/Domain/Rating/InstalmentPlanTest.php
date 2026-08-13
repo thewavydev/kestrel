@@ -2,30 +2,118 @@
 
 declare(strict_types=1);
 
-use App\Domain\Rating\InstalmentPlan;
+namespace Tests\Unit\Domain\Rating;
 
-it('matches the AT-01 instalment calculation', function () {
-    $plan = InstalmentPlan::calculate(32775);
+use App\Domain\Rating\DTO\PaymentPlan;
+use App\Domain\Rating\Engine\RatingBasis;
+use App\Domain\Rating\Engine\RatingEngine;
+use PHPUnit\Framework\TestCase;
 
-    expect($plan['deposit_pence'])->toBe(6555)
-        ->and($plan['balance_pence'])->toBe(26220)
-        ->and($plan['credit_charge_pence'])->toBe(3278)
-        ->and($plan['financed_amount_pence'])->toBe(29498)
-        ->and($plan['instalments'][0])->toBe(2688)
-        ->and($plan['instalments'][1])->toBe(2681)
-        ->and($plan['instalments'][10])->toBe(2681)
-        ->and($plan['total_by_instalments_pence'])->toBe(36053);
-});
+final class InstalmentPlanTest extends TestCase
+{
+    private RatingEngine $engine;
 
-it('always allocates the residual explicitly', function () {
-    $plan = InstalmentPlan::calculate(10001);
+    protected function setUp(): void
+    {
+        parent::setUp();
 
-    expect(
-        array_sum($plan['instalments'])
-    )->toBe($plan['financed_amount_pence']);
+        $this->engine = new RatingEngine(
+            RatingBasis::v1()
+        );
+    }
 
-    expect(
-        $plan['deposit_pence'] +
-        array_sum($plan['instalments'])
-    )->toBeGreaterThan(0);
-});
+    public function test_at_01_instalment_calculation(): void
+    {
+        $plan = $this->engine->instalmentPlan('327.75');
+
+        self::assertInstanceOf(
+            PaymentPlan::class,
+            $plan
+        );
+
+        self::assertSame(
+            '65.55',
+            $plan->deposit
+        );
+
+        self::assertSame(
+            '32.78',
+            $plan->creditCharge
+        );
+
+        self::assertSame(
+            '294.98',
+            $plan->financedAmount
+        );
+
+        self::assertCount(
+            11,
+            $plan->instalments
+        );
+
+        $instalmentTotal = '0.00';
+
+        foreach ($plan->instalments as $instalment) {
+            $instalmentTotal = bcadd(
+                $instalmentTotal,
+                $instalment,
+                2
+            );
+        }
+
+        self::assertSame(
+            $plan->financedAmount,
+            $instalmentTotal
+        );
+
+        self::assertSame(
+            '26.88',
+            $plan->instalments[0]
+        );
+
+        self::assertSame(
+            '26.81',
+            $plan->instalments[1]
+        );
+
+        self::assertSame(
+            '26.81',
+            $plan->instalments[10]
+        );
+
+        self::assertSame(
+            '360.53',
+            $plan->totalPayable
+        );
+    }
+
+    public function test_residual_is_always_allocated_to_instalments(): void
+    {
+        $plan = $this->engine->instalmentPlan('100.01');
+
+        $instalmentTotal = '0.00';
+
+        foreach ($plan->instalments as $instalment) {
+            $instalmentTotal = bcadd(
+                $instalmentTotal,
+                $instalment,
+                2
+            );
+        }
+
+        self::assertSame(
+            $plan->financedAmount,
+            $instalmentTotal
+        );
+
+        self::assertGreaterThan(
+            0,
+            (float) $plan->deposit
+        );
+
+        self::assertGreaterThan(
+            0,
+            (float) $instalmentTotal
+        );
+    }
+}
