@@ -100,7 +100,7 @@ $subtotal = $baseRate * $coverFactor * $ageFactor * /* 10 more factors */
 $subtotal = $baseRate;                    // 1. Base
 $subtotal = $this->multiply($subtotal, $coverFactor);  // 2. Cover
 $subtotal = $this->multiply($subtotal, $ageFactor);    // 3. Age
-// ... each factor applied independently
+
 ```
 
 **Why effective**: Breaking calculations into discrete steps with debugging output (`$breakdown[]`) makes the 13-factor calculation understandable.
