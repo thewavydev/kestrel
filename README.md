@@ -1,6 +1,8 @@
 # Kestrel - Auto Insurance Rating Engine
 
-A production-ready insurance auto rating and underwriting engine built with Laravel and Domain-Driven Design (DDD) principles.
+> **Status**: Test Development
+
+A test development insurance auto rating and underwriting engine built with Laravel and Domain-Driven Design (DDD) principles.
 
 ## Table of Contents
 
@@ -59,16 +61,7 @@ app/
 └── Models/                # Eloquent models
 ```
 
-### Why DDD for Insurance?
 
-Insurance rating requires precise business logic isolated from technical concerns:
-
-1. **Complex Business Rules**: Underwriting and rating are sophisticated; DDD keeps them testable
-2. **Multiple Subdomains**: Quote, Rating, Risk, Underwriting have distinct concerns (future expansion)
-3. **Temporal Requirements**: Rating basis versioning requires model-specific logic
-4. **Regulatory Compliance**: Isolated business logic simplifies audit trails
-
----
 
 ## AI-Assisted Development
 
@@ -685,6 +678,12 @@ $engineV2 = new RatingEngine(RatingBasis::v2());  // Ready to extend
 - Compulsory excess by age
 - Postcode risk banding (5 bands: A-E)
 - All tests and unit coverage
+
+> **⚠️ Verify Working Solution**: Run tests to verify the implementation is working correctly:
+> ```bash
+> php artisan test tests/Unit/Domain/Rating/RatingEngineTest.php
+> php artisan test tests/Unit/Domain/Rating/UnderwritingRulesTest.php
+> ```
 
 ### 🔧 Ready for Extension
 The architecture supports adding:
