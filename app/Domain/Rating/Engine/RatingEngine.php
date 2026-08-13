@@ -33,12 +33,6 @@ final class RatingEngine
     {
         $underwriting = $this->underwritingRules->evaluate($risk);
 
-        /*
-         * Underwriting happens BEFORE pricing.
-         *
-         * A declined or referred risk must never receive
-         * a customer-facing premium.
-         */
         if ($underwriting['decision'] === 'DECLINED') {
             return new RatingResult(
                 decision: 'DECLINED',
@@ -64,16 +58,9 @@ final class RatingEngine
     private function calculate(Risk $risk): RatingResult
     {
         $youngestDriver = $this->youngestDriver($risk);
-
         $breakdown = [];
 
-        /*
-         * 1. Base rate
-         */
-        $baseRate = $this->baseRate(
-            $risk->vehicleGroup
-        );
-
+        $baseRate = $this->baseRate($risk->vehicleGroup);
         $subtotal = $baseRate;
 
         $breakdown[] = new BreakdownLine(
@@ -83,17 +70,8 @@ final class RatingEngine
             subtotal: $this->money($subtotal),
         );
 
-        /*
-         * 2. Cover
-         */
-        $coverFactor = $this->basis->coverFactors[
-            $risk->coverType
-        ];
-
-        $subtotal = $this->multiply(
-            $subtotal,
-            $coverFactor
-        );
+        $coverFactor = $this->basis->coverFactors[$risk->coverType];
+        $subtotal = $this->multiply($subtotal, $coverFactor);
 
         $breakdown[] = new BreakdownLine(
             name: 'Cover type',
@@ -102,18 +80,8 @@ final class RatingEngine
             subtotal: $this->money($subtotal),
         );
 
-        /*
-         * 3. Age
-         */
-        $ageFactor = $this->rangeFactor(
-            $this->basis->ageFactors,
-            $youngestDriver->age
-        );
-
-        $subtotal = $this->multiply(
-            $subtotal,
-            $ageFactor
-        );
+        $ageFactor = $this->rangeFactor($this->basis->ageFactors, $youngestDriver->age);
+        $subtotal = $this->multiply($subtotal, $ageFactor);
 
         $breakdown[] = new BreakdownLine(
             name: 'Age of youngest driver',
@@ -122,23 +90,9 @@ final class RatingEngine
             subtotal: $this->money($subtotal),
         );
 
-        /*
-         * 4. Licence
-         */
-        $licenceYears = intdiv(
-            $youngestDriver->licenceMonths,
-            12
-        );
-
-        $licenceFactor = $this->rangeFactor(
-            $this->basis->licenceFactors,
-            $licenceYears
-        );
-
-        $subtotal = $this->multiply(
-            $subtotal,
-            $licenceFactor
-        );
+        $licenceYears = intdiv($youngestDriver->licenceMonths, 12);
+        $licenceFactor = $this->rangeFactor($this->basis->licenceFactors, $licenceYears);
+        $subtotal = $this->multiply($subtotal, $licenceFactor);
 
         $breakdown[] = new BreakdownLine(
             name: 'Licence held',
@@ -147,17 +101,8 @@ final class RatingEngine
             subtotal: $this->money($subtotal),
         );
 
-        /*
-         * 5. Claims
-         */
-        $claimsFactor = $this->basis->claimFactors[
-            $risk->faultClaims
-        ];
-
-        $subtotal = $this->multiply(
-            $subtotal,
-            $claimsFactor
-        );
+        $claimsFactor = $this->basis->claimFactors[$risk->faultClaims];
+        $subtotal = $this->multiply($subtotal, $claimsFactor);
 
         $breakdown[] = new BreakdownLine(
             name: 'Fault claims',
@@ -166,18 +111,8 @@ final class RatingEngine
             subtotal: $this->money($subtotal),
         );
 
-        /*
-         * 6. Penalty points
-         */
-        $pointsFactor = $this->rangeFactor(
-            $this->basis->pointFactors,
-            $risk->penaltyPoints
-        );
-
-        $subtotal = $this->multiply(
-            $subtotal,
-            $pointsFactor
-        );
+        $pointsFactor = $this->rangeFactor($this->basis->pointFactors, $risk->penaltyPoints);
+        $subtotal = $this->multiply($subtotal, $pointsFactor);
 
         $breakdown[] = new BreakdownLine(
             name: 'Penalty points',
@@ -186,18 +121,8 @@ final class RatingEngine
             subtotal: $this->money($subtotal),
         );
 
-        /*
-         * 7. Convictions
-         *
-         * Convictions that reach this point have already passed
-         * underwriting. Therefore they have a neutral rating factor.
-         */
         $convictionsFactor = '1.00';
-
-        $subtotal = $this->multiply(
-            $subtotal,
-            $convictionsFactor
-        );
+        $subtotal = $this->multiply($subtotal, $convictionsFactor);
 
         $breakdown[] = new BreakdownLine(
             name: 'Convictions',
@@ -206,18 +131,8 @@ final class RatingEngine
             subtotal: $this->money($subtotal),
         );
 
-        /*
-         * 8. Mileage
-         */
-        $mileageFactor = $this->rangeFactor(
-            $this->basis->mileageFactors,
-            $risk->annualMileage
-        );
-
-        $subtotal = $this->multiply(
-            $subtotal,
-            $mileageFactor
-        );
+        $mileageFactor = $this->rangeFactor($this->basis->mileageFactors, $risk->annualMileage);
+        $subtotal = $this->multiply($subtotal, $mileageFactor);
 
         $breakdown[] = new BreakdownLine(
             name: 'Annual mileage',
@@ -226,21 +141,9 @@ final class RatingEngine
             subtotal: $this->money($subtotal),
         );
 
-        /*
-         * 9. Postcode
-         */
-        $postcodeBand = $this->postcodeBand(
-            $risk->postcode
-        );
-
-        $postcodeFactor = $this->basis->postcodeFactors[
-            $postcodeBand
-        ];
-
-        $subtotal = $this->multiply(
-            $subtotal,
-            $postcodeFactor
-        );
+        $postcodeBand = $this->postcodeBand($risk->postcode);
+        $postcodeFactor = $this->basis->postcodeFactors[$postcodeBand];
+        $subtotal = $this->multiply($subtotal, $postcodeFactor);
 
         $breakdown[] = new BreakdownLine(
             name: 'Postcode risk band',
@@ -249,17 +152,8 @@ final class RatingEngine
             subtotal: $this->money($subtotal),
         );
 
-        /*
-         * 10. Class of use
-         */
-        $classFactor = $this->basis->classOfUseFactors[
-            $risk->classOfUse
-        ];
-
-        $subtotal = $this->multiply(
-            $subtotal,
-            $classFactor
-        );
+        $classFactor = $this->basis->classOfUseFactors[$risk->classOfUse];
+        $subtotal = $this->multiply($subtotal, $classFactor);
 
         $breakdown[] = new BreakdownLine(
             name: 'Class of use',
@@ -268,49 +162,20 @@ final class RatingEngine
             subtotal: $this->money($subtotal),
         );
 
-        /*
-         * 11. Voluntary excess
-         */
-        $excessFactor = $this->basis->voluntaryExcessFactors[
-            $risk->voluntaryExcess
-        ];
-
-        $subtotal = $this->multiply(
-            $subtotal,
-            $excessFactor
-        );
+        $excessFactor = $this->basis->voluntaryExcessFactors[$risk->voluntaryExcess];
+        $subtotal = $this->multiply($subtotal, $excessFactor);
 
         $breakdown[] = new BreakdownLine(
             name: 'Voluntary excess',
-            value: '£' . number_format(
-                $risk->voluntaryExcess,
-                2
-            ),
+            value: '£' . number_format($risk->voluntaryExcess, 2),
             multiplier: $excessFactor,
             subtotal: $this->money($subtotal),
         );
 
-        /*
-         * 12. No Claims Discount
-         */
-        $ncdYears = min(
-            $risk->ncdYears,
-            9
-        );
-
-        $ncdDiscount = $this->basis->ncdDiscounts[
-            $ncdYears
-        ];
-
-        $discountMultiplier = $this->subtract(
-            '1.00',
-            $ncdDiscount
-        );
-
-        $discountedPremium = $this->multiply(
-            $subtotal,
-            $discountMultiplier
-        );
+        $ncdYears = min($risk->ncdYears, 9);
+        $ncdDiscount = $this->basis->ncdDiscounts[$ncdYears];
+        $discountMultiplier = $this->subtract('1.00', $ncdDiscount);
+        $discountedPremium = $this->multiply($subtotal, $discountMultiplier);
 
         $breakdown[] = new BreakdownLine(
             name: 'No Claims Discount',
@@ -319,21 +184,9 @@ final class RatingEngine
             subtotal: $this->money($discountedPremium),
         );
 
-        /*
-         * 13. Minimum premium
-         */
-        $minimumApplied = ! $this->greaterThan(
-            $discountedPremium,
-            $this->basis->minimumPremium
-        );
-
-        $premiumBeforeFloor = $minimumApplied
-            ? $this->basis->minimumPremium
-            : $discountedPremium;
-
-        $netPremium = $this->roundHalfUp(
-            $premiumBeforeFloor
-        );
+        $minimumApplied = !$this->greaterThan($discountedPremium, $this->basis->minimumPremium);
+        $premiumBeforeFloor = $minimumApplied ? $this->basis->minimumPremium : $discountedPremium;
+        $netPremium = $this->roundHalfUp($premiumBeforeFloor);
 
         if ($minimumApplied) {
             $breakdown[] = new BreakdownLine(
@@ -344,138 +197,51 @@ final class RatingEngine
             );
         }
 
-        /*
-         * 14. NCD protection
-         */
         $ncdProtectionFee = '0.00';
-
         if ($risk->ncdProtected) {
             $ncdProtectionFee = $this->roundHalfUp(
-                $this->multiply(
-                    $netPremium,
-                    '0.04'
-                )
+                $this->multiply($netPremium, '0.04')
             );
         }
 
-        /*
-         * 15. Add-ons
-         */
         $addOnsTotal = '0.00';
-
         foreach ($risk->addOns as $addOn) {
-            $addOnsTotal = $this->add(
-                $addOnsTotal,
-                $this->basis->addOns[$addOn]
-            );
+            $addOnsTotal = $this->add($addOnsTotal, $this->basis->addOns[$addOn]);
         }
+        $addOnsTotal = $this->money($addOnsTotal);
 
-        $addOnsTotal = $this->money(
-            $addOnsTotal
-        );
-
-        /*
-         * 16. Taxable amount
-         */
         $taxableAmount = $this->add(
-            $this->add(
-                $netPremium,
-                $ncdProtectionFee
-            ),
+            $this->add($netPremium, $ncdProtectionFee),
             $addOnsTotal
         );
+        $taxableAmount = $this->money($taxableAmount);
 
-        $taxableAmount = $this->money(
-            $taxableAmount
-        );
-
-        /*
-         * 17. IPT
-         */
         $ipt = $this->roundHalfUp(
-            $this->multiply(
-                $taxableAmount,
-                $this->basis->iptRate
-            )
+            $this->multiply($taxableAmount, $this->basis->iptRate)
         );
 
-        /*
-         * 18. Total
-         */
         $total = $this->add(
-            $this->add(
-                $taxableAmount,
-                $ipt
-            ),
+            $this->add($taxableAmount, $ipt),
             $this->basis->administrationFee
         );
-
         $total = $this->money($total);
 
-        /*
-         * Excess
-         */
-        $compulsoryExcess = $this->compulsoryExcess(
-            $youngestDriver->age
-        );
-
-        $totalExcess =
-            $compulsoryExcess +
-            $risk->voluntaryExcess;
+        $compulsoryExcess = $this->compulsoryExcess($youngestDriver->age);
+        $totalExcess = $compulsoryExcess + $risk->voluntaryExcess;
 
         return new RatingResult(
             decision: 'QUOTE',
             ratingBasisVersion: $this->basis->version,
-
-            netPremium: $this->money(
-                $netPremium
-            ),
-
-            ncdProtectionFee: $this->money(
-                $ncdProtectionFee
-            ),
-
-            addOns: $this->money(
-                $addOnsTotal
-            ),
-
-            taxableAmount: $this->money(
-                $taxableAmount
-            ),
-
-            ipt: $this->money(
-                $ipt
-            ),
-
-            administrationFee: $this->money(
-                $this->basis->administrationFee
-            ),
-
-            total: $this->money(
-                $total
-            ),
-
-            compulsoryExcess: number_format(
-                $compulsoryExcess,
-                2,
-                '.',
-                ''
-            ),
-
-            voluntaryExcess: number_format(
-                $risk->voluntaryExcess,
-                2,
-                '.',
-                ''
-            ),
-
-            totalExcess: number_format(
-                $totalExcess,
-                2,
-                '.',
-                ''
-            ),
-
+            netPremium: $this->money($netPremium),
+            ncdProtectionFee: $this->money($ncdProtectionFee),
+            addOns: $this->money($addOnsTotal),
+            taxableAmount: $this->money($taxableAmount),
+            ipt: $this->money($ipt),
+            administrationFee: $this->money($this->basis->administrationFee),
+            total: $this->money($total),
+            compulsoryExcess: number_format($compulsoryExcess, 2, '.', ''),
+            voluntaryExcess: number_format($risk->voluntaryExcess, 2, '.', ''),
+            totalExcess: number_format($totalExcess, 2, '.', ''),
             breakdown: $breakdown
         );
     }
@@ -668,332 +434,193 @@ final class RatingEngine
         ) === 1;
     }
 
-    public function instalmentPlan(
-        string $totalPayable
-    ): PaymentPlan {
-        /*
-         * 20% deposit.
-         */
+    public function instalmentPlan(string $totalPayable): PaymentPlan
+    {
         $deposit = $this->roundHalfUp(
-            $this->multiply(
-                $totalPayable,
-                '0.20'
-            )
+            $this->multiply($totalPayable, '0.20')
         );
 
-        /*
-         * Amount remaining after deposit.
-         */
-        $balance = $this->subtract(
-            $totalPayable,
-            $deposit
-        );
+        $balance = $this->subtract($totalPayable, $deposit);
 
-        /*
-         * 12.5% credit charge.
-         */
         $creditCharge = $this->roundHalfUp(
-            $this->multiply(
-                $balance,
-                '0.125'
-            )
+            $this->multiply($balance, '0.125')
         );
 
-        /*
-         * Amount financed.
-         */
         $financedAmount = $this->money(
-            $this->add(
-                $balance,
-                $creditCharge
-            )
+            $this->add($balance, $creditCharge)
         );
 
-        /*
-         * Calculate the regular instalment.
-         *
-         * We deliberately round DOWN so that we never
-         * accidentally finance more than the exact amount.
-         */
         $regularInstalment = bcdiv(
             $financedAmount,
             '11',
             10
         );
 
-        $regularInstalment = bcdiv(
-            $regularInstalment,
-            '1',
-            2
-        );
+        $regularInstalment = bcdiv($regularInstalment, '1', 2);
 
-        $instalments = array_fill(
-            0,
-            11,
-            $regularInstalment
-        );
+        $instalments = array_fill(0, 11, $regularInstalment);
 
-        /*
-         * Calculate what the eleven regular payments
-         * currently add up to.
-         */
         $scheduledTotal = '0.00';
-
         foreach ($instalments as $instalment) {
-            $scheduledTotal = $this->add(
-                $scheduledTotal,
-                $instalment
-            );
+            $scheduledTotal = $this->add($scheduledTotal, $instalment);
         }
 
-        $scheduledTotal = $this->money(
-            $scheduledTotal
-        );
+        $scheduledTotal = $this->money($scheduledTotal);
 
-        /*
-         * Allocate the residual pence explicitly
-         * to the first instalment.
-         */
-        $residual = $this->subtract(
-            $financedAmount,
-            $scheduledTotal
-        );
-
-        $residual = $this->money(
-            $residual
-        );
+        $residual = $this->subtract($financedAmount, $scheduledTotal);
+        $residual = $this->money($residual);
 
         $instalments[0] = $this->money(
-            $this->add(
-                $instalments[0],
-                $residual
-            )
+            $this->add($instalments[0], $residual)
         );
 
-        /*
-         * Ensure every instalment is represented
-         * to exactly two decimal places.
-         */
         foreach ($instalments as $index => $instalment) {
-            $instalments[$index] =
-                $this->money($instalment);
+            $instalments[$index] = $this->money($instalment);
         }
 
         $totalPayableFromPlan = $this->money(
-            $this->add(
-                $deposit,
-                $financedAmount
-            )
+            $this->add($deposit, $financedAmount)
         );
 
         return new PaymentPlan(
             deposit: $this->money($deposit),
-
             instalments: $instalments,
-
-            financedAmount:
-                $this->money($financedAmount),
-
-            creditCharge:
-                $this->money($creditCharge),
-
-            totalPayable:
-                $totalPayableFromPlan,
+            financedAmount: $this->money($financedAmount),
+            creditCharge: $this->money($creditCharge),
+            totalPayable: $totalPayableFromPlan,
         );
     }
 
-    public function calculateMidTermAdjustment(
-    string $originalNetPremium,
-    string $amendedAnnualPremium,
-    int $dayOfAdjustment,
-    string $adjustmentFee,
-    string $iptRate,
-): MidTermAdjustmentResult {
-    $daysRemaining = 365 - $dayOfAdjustment;
+        public function calculateMidTermAdjustment(
+        string $originalNetPremium,
+        string $amendedAnnualPremium,
+        int $dayOfAdjustment,
+        string $adjustmentFee,
+        string $iptRate,
+    ): MidTermAdjustmentResult {
+        $daysRemaining = 365 - $dayOfAdjustment;
 
-    $unusedPremiumRefund = $this->roundHalfUp(
-        bcdiv(
-            bcmul(
-                $originalNetPremium,
-                (string) $daysRemaining,
+        $unusedPremiumRefund = $this->roundHalfUp(
+            bcdiv(
+                bcmul($originalNetPremium, (string) $daysRemaining, 10),
+                '365',
                 10
-            ),
-            '365',
-            10
-        )
-    );
+            )
+        );
 
-    $amendedRiskPremium = $this->roundHalfUp(
-        bcdiv(
-            bcmul(
-                $amendedAnnualPremium,
-                (string) $daysRemaining,
+        $amendedRiskPremium = $this->roundHalfUp(
+            bcdiv(
+                bcmul($amendedAnnualPremium, (string) $daysRemaining, 10),
+                '365',
                 10
-            ),
-            '365',
-            10
-        )
-    );
+            )
+        );
 
-$additionalPremium = $this->money(
-    $this->subtract(
-        $amendedRiskPremium,
-        $unusedPremiumRefund
-    )
-);
+        $additionalPremium = $this->money(
+            $this->subtract($amendedRiskPremium, $unusedPremiumRefund)
+        );
 
-    $ipt = $this->roundHalfUp(
-        bcmul(
-            $additionalPremium,
-            $iptRate,
-            10
-        )
-    );
+        $ipt = $this->roundHalfUp(
+            bcmul($additionalPremium, $iptRate, 10)
+        );
 
-$totalCharged = $this->money(
-    $this->add(
-        $this->add(
-            $additionalPremium,
-            $ipt
-        ),
-        $adjustmentFee
-    )
-);
+        $totalCharged = $this->money(
+            $this->add(
+                $this->add($additionalPremium, $ipt),
+                $adjustmentFee
+            )
+        );
 
-    return new MidTermAdjustmentResult(
-        unusedPremiumRefund: $unusedPremiumRefund,
-        amendedRiskPremium: $amendedRiskPremium,
-        additionalPremium: $additionalPremium,
-        ipt: $ipt,
-        adjustmentFee: $adjustmentFee,
-        totalCharged: $totalCharged,
-    );
-}
+        return new MidTermAdjustmentResult(
+            unusedPremiumRefund: $unusedPremiumRefund,
+            amendedRiskPremium: $amendedRiskPremium,
+            additionalPremium: $additionalPremium,
+            ipt: $ipt,
+            adjustmentFee: $adjustmentFee,
+            totalCharged: $totalCharged,
+        );
+    }
 
-public function calculateCancellation(
-    string $netPremium,
-    string $addOns,
-    int $dayOfCancellation,
-    string $cancellationFee,
-    string $administrationFee,
-    string $iptRate,
-    bool $hasFaultClaim,
-): CancellationResult {
-    /*
-     * A fault claim during the current period
-     * means no refund is due.
-     */
-    if ($hasFaultClaim) {
+    public function calculateCancellation(
+        string $netPremium,
+        string $addOns,
+        int $dayOfCancellation,
+        string $cancellationFee,
+        string $administrationFee,
+        string $iptRate,
+        bool $hasFaultClaim,
+    ): CancellationResult {
+        if ($hasFaultClaim) {
+            return new CancellationResult(
+                premiumRefund: '0.00',
+                addOnRefund: '0.00',
+                iptRefund: '0.00',
+                cancellationFee: '0.00',
+                netRefund: '0.00',
+                administrationFeeRetained: $administrationFee,
+            );
+        }
+
+        $daysRemaining = 365 - $dayOfCancellation;
+
+        $premiumRefund = $this->roundHalfUp(
+            bcdiv(
+                bcmul($netPremium, (string) $daysRemaining, 10),
+                '365',
+                10
+            )
+        );
+
+        $addOnRefund = $this->roundHalfUp(
+            bcdiv(
+                bcmul($addOns, (string) $daysRemaining, 10),
+                '365',
+                10
+            )
+        );
+
+        $refundTaxableAmount = $this->add($premiumRefund, $addOnRefund);
+
+        $iptRefund = $this->roundHalfUp(
+            $this->multiply($refundTaxableAmount, $iptRate)
+        );
+
+        $netRefund = $this->money(
+            $this->subtract(
+                $this->add($refundTaxableAmount, $iptRefund),
+                $cancellationFee
+            )
+        );
+
         return new CancellationResult(
-            premiumRefund: '0.00',
-            addOnRefund: '0.00',
-            iptRefund: '0.00',
-            cancellationFee: '0.00',
-            netRefund: '0.00',
+            premiumRefund: $premiumRefund,
+            addOnRefund: $addOnRefund,
+            iptRefund: $iptRefund,
+            cancellationFee: $cancellationFee,
+            netRefund: $netRefund,
             administrationFeeRetained: $administrationFee,
         );
     }
 
-    $daysRemaining = 365 - $dayOfCancellation;
+    public function calculateRenewalPrice(
+        string $technicalRenewalPrice,
+        string $equivalentNewBusinessPrice,
+    ): RenewalPriceResult {
+        $capApplied = bccomp(
+            $technicalRenewalPrice,
+            $equivalentNewBusinessPrice,
+            2
+        ) > 0;
 
-    /*
-     * Refund premium pro-rata.
-     * Each pro-rata amount is rounded independently.
-     */
-    $premiumRefund = $this->roundHalfUp(
-        bcdiv(
-            bcmul(
-                $netPremium,
-                (string) $daysRemaining,
-                10
-            ),
-            '365',
-            10
-        )
-    );
+        $priceToOffer = $capApplied
+            ? $equivalentNewBusinessPrice
+            : $technicalRenewalPrice;
 
-    /*
-     * Refund add-ons pro-rata.
-     */
-    $addOnRefund = $this->roundHalfUp(
-        bcdiv(
-            bcmul(
-                $addOns,
-                (string) $daysRemaining,
-                10
-            ),
-            '365',
-            10
-        )
-    );
-
-    /*
-     * IPT refund is based on the rounded
-     * premium + add-on refunds.
-     */
-    $refundTaxableAmount = $this->add(
-        $premiumRefund,
-        $addOnRefund
-    );
-
-    $iptRefund = $this->roundHalfUp(
-        $this->multiply(
-            $refundTaxableAmount,
-            $iptRate
-        )
-    );
-
-    /*
-     * Net refund:
-     *
-     * premium refund
-     * + add-on refund
-     * + IPT refund
-     * - cancellation fee
-     */
-$netRefund = $this->money(
-    $this->subtract(
-        $this->add(
-            $refundTaxableAmount,
-            $iptRefund
-        ),
-        $cancellationFee
-    )
-);
-
-    return new CancellationResult(
-        premiumRefund: $premiumRefund,
-        addOnRefund: $addOnRefund,
-        iptRefund: $iptRefund,
-        cancellationFee: $cancellationFee,
-        netRefund: $netRefund,
-        administrationFeeRetained: $administrationFee,
-    );
-}
-
-public function calculateRenewalPrice(
-    string $technicalRenewalPrice,
-    string $equivalentNewBusinessPrice,
-): RenewalPriceResult {
-    /*
-     * Renewal price cannot exceed the
-     * equivalent new-business price.
-     */
-    $capApplied = bccomp(
-        $technicalRenewalPrice,
-        $equivalentNewBusinessPrice,
-        2
-    ) > 0;
-
-    $priceToOffer = $capApplied
-        ? $equivalentNewBusinessPrice
-        : $technicalRenewalPrice;
-
-    return new RenewalPriceResult(
-        technicalRenewalPrice: $technicalRenewalPrice,
-        equivalentNewBusinessPrice: $equivalentNewBusinessPrice,
-        priceToOffer: $priceToOffer,
-        capApplied: $capApplied,
-    );
-}
+        return new RenewalPriceResult(
+            technicalRenewalPrice: $technicalRenewalPrice,
+            equivalentNewBusinessPrice: $equivalentNewBusinessPrice,
+            priceToOffer: $priceToOffer,
+            capApplied: $capApplied,
+        );
+    }
 }
